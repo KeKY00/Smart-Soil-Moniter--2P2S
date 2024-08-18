@@ -1,0 +1,113 @@
+#define BLYNK_TEMPLATE_ID "TMPL3sKfcXFlZ"
+#define BLYNK_TEMPLATE_NAME "Soil Moniter"
+#define BLYNK_AUTH_TOKEN "E_NqdJHXhyhAekSIasGhaBcO8llG_pmq"
+#define BLYNK_PRINT Serial
+
+#include <DHTesp.h>
+#include <WiFi.h>
+#include <BlynkSimpleEsp32.h>
+#include <ESP32Servo.h>
+
+char auth[] = BLYNK_AUTH_TOKEN;
+char ssid[] = "Wokwi-GUEST";
+char pass[] = "";
+
+int dhtPin = 13;
+int nitro = 34;
+int phos = 35;
+int potas = 32;
+int servoPin1 = 26; 
+int servoPin2 = 27; 
+
+const int temperatureThreshold = 24;
+const int phosphorusThreshold = 20;
+
+struct previousValues {
+  int temperature;
+  int humidity;
+  int nitro;
+  int phos;
+  int potas;
+};
+
+previousValues potValues = {0, 0, 0, 0, 0};
+DHTesp dht;
+Servo servo1; 
+Servo servo2;
+
+BLYNK_WRITE(V0) {
+}
+
+BLYNK_WRITE(V1) {
+}
+
+BLYNK_WRITE(V2) {
+}
+
+BLYNK_WRITE(V3) {
+}
+
+BLYNK_WRITE(V4) {
+}
+
+void setup() {
+  Serial.begin(9600);
+  Serial.print("Connecting to WiFi");
+  WiFi.begin(ssid, pass, 6);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println(" Connected!");
+  Blynk.begin(auth, ssid, pass); 
+
+  dht.setup(dhtPin, DHTesp::DHT22);
+  pinMode(nitro, INPUT);
+  pinMode(phos, INPUT);
+  pinMode(potas, INPUT);
+
+  servo1.attach(servoPin1);
+  servo2.attach(servoPin2);
+}
+
+void loop() {
+  Blynk.run();
+
+  TempAndHumidity dhtData = dht.getTempAndHumidity();
+  float temperature = dhtData.temperature;
+  float humidity = dhtData.humidity;
+  int nitrogenValue = analogRead(nitro);
+  float phosphorusValue = analogRead(phos) / 4095.0 * 100; 
+  float potassiumValue = analogRead(potas) / 4095.0 * 100; 
+
+  if (potValues.temperature != temperature) {
+    Blynk.virtualWrite(V0, temperature);
+    potValues.temperature = temperature;
+  }
+  if (potValues.humidity != humidity) {
+    Blynk.virtualWrite(V1, humidity);
+    potValues.humidity = humidity;
+  }
+  if (potValues.nitro != nitrogenValue) {
+    Blynk.virtualWrite(V2, nitrogenValue / 4095.0 * 100);
+    potValues.nitro = nitrogenValue;
+  }
+  if (potValues.phos != phosphorusValue) {
+    Blynk.virtualWrite(V3, phosphorusValue);
+    potValues.phos = phosphorusValue;
+  }
+  if (potValues.potas != potassiumValue) {
+    Blynk.virtualWrite(V4, potassiumValue);
+    potValues.potas = potassiumValue;
+  }
+
+  if (temperature >= temperatureThreshold && phosphorusValue >= phosphorusThreshold) {
+    servo1.write(0); 
+    servo2.write(0); 
+  } else {
+    servo1.write(90); 
+    servo2.write(90); 
+  }
+
+  delay(1000);
+}
